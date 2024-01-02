@@ -1,9 +1,17 @@
+# Server
 fastapi
 uvicorn[standard]
+
+# Machine Learning Dependencies
 numpy
 pandas
 scikit-learn
 opencv-python
 joblib
+
+# template renderer
+jinja2
+
+# Code Sorting and formatting
 isort
 black
