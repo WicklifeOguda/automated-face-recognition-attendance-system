@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+numpy
+pandas
+scikit-learn
+opencv-python
+joblib
+isort
+black
