@@ -5,7 +5,7 @@ import cv2
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sklearn.neighbors import KNeighborsClassifier
@@ -249,10 +249,13 @@ async def start(request: Request):
     )
 
 
-# A function to add a new user.
-# This function will run when we add a new user.
+# Handles registration of a new user into the db
+# Captures 10 instances of a persons  face and uses it to train the model to recognize that
+# person during attendance taking stage.
 @app.post("/add", response_class=HTMLResponse)
-async def add(request: Request, newusername: str = None, newuserid: str = None):
+async def add(
+    request: Request, newusername: str = Form(...), newuserid: str = Form(...)
+):
     userimagefolder = "static/faces/" + newusername + "_" + str(newuserid)
     if not os.path.isdir(userimagefolder):
         os.makedirs(userimagefolder)

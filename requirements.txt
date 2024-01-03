@@ -12,6 +12,9 @@ joblib
 # template renderer
 jinja2
 
+# form data handling
+python-multipart
+
 # Code Sorting and formatting
 isort
 black
