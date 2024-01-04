@@ -5,7 +5,7 @@ import cv2
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import Depends, FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sklearn.neighbors import KNeighborsClassifier
@@ -211,42 +211,58 @@ async def start(request: Request):
 
     ret = True
     cap = cv2.VideoCapture(0)
-    while ret:
-        ret, frame = cap.read()
-        if len(extract_faces(frame)) > 0:
-            (x, y, w, h) = extract_faces(frame)[0]
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (86, 32, 251), 1)
-            cv2.rectangle(frame, (x, y), (x + w, y - 40), (86, 32, 251), -1)
-            face = cv2.resize(frame[y : y + h, x : x + w], (50, 50))
-            identified_person = identify_face(face.reshape(1, -1))[0]
-            add_attendance(identified_person)
-            cv2.putText(
-                frame,
-                f"{identified_person}",
-                (x + 5, y - 5),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2,
-            )
-        cv2.imshow("Attendance", frame)
-        if cv2.waitKey(1) == 27:
-            break
-    cap.release()
-    cv2.destroyAllWindows()
-    names, rolls, times, l = extract_attendance()
-    return templates.TemplateResponse(
-        "home.html",
-        {
-            "request": request,
-            "names": names,
-            "rolls": rolls,
-            "times": times,
-            "l": l,
-            "totalreg": totalreg(),
-            "datetoday2": datetoday2,
-        },
-    )
+    identified_person = None
+    try:
+        while ret:
+            ret, frame = cap.read()
+            if len(extract_faces(frame)) > 0:
+                (x, y, w, h) = extract_faces(frame)[0]
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (86, 32, 251), 1)
+                cv2.rectangle(frame, (x, y), (x + w, y - 40), (86, 32, 251), -1)
+                face = cv2.resize(frame[y : y + h, x : x + w], (50, 50))
+                identified_person = identify_face(face.reshape(1, -1))[0]
+                add_attendance(identified_person)
+                cv2.putText(
+                    frame,
+                    f"{identified_person}",
+                    (x + 5, y - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (255, 255, 255),
+                    2,
+                )
+                # Break out of the loop after the first user is identified
+                break
+
+            cv2.imshow("Attendance", frame)
+            if cv2.waitKey(1) == 27:
+                break
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+
+    if identified_person:
+        return templates.TemplateResponse(
+            "identification_info.html",
+            {
+                "request": request,
+                "identified_person": identified_person,
+            },
+        )
+    else:
+        names, rolls, times, l = extract_attendance()
+        return templates.TemplateResponse(
+            "home.html",
+            {
+                "request": request,
+                "names": names,
+                "rolls": rolls,
+                "times": times,
+                "l": l,
+                "totalreg": totalreg(),
+                "datetoday2": datetoday2,
+            },
+        )
 
 
 # Handles registration of a new user into the db
