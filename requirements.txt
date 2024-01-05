@@ -15,6 +15,9 @@ jinja2
 # form data handling
 python-multipart
 
+# Db dependencies
+sqlalchemy
+
 # Code Sorting and formatting
 isort
 black
