@@ -5,13 +5,29 @@ import cv2
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, Form, Request
+from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sklearn.neighbors import KNeighborsClassifier
+from sqlalchemy.orm import Session
+
+import models
+from database import SessionLocal, engine
 
 # Defining FastAPI App
 app = FastAPI()
+
+# Database Connections
+models.Base.metadata.create_all(bind=engine)
+
+
+def get_db():
+    try:
+        db = SessionLocal()
+        yield db
+    finally:
+        db.close()
+
 
 templates = Jinja2Templates(directory="templates")
 
@@ -142,18 +158,13 @@ async def home(request: Request):
 
 # List users page
 @app.get("/listusers", response_class=HTMLResponse)
-async def listusers(request: Request):
-    userlist, names, rolls, l = getallusers()
+async def listusers(request: Request, db: Session = Depends(get_db)):
+    users = db.query(models.Student).all()
     return templates.TemplateResponse(
         "listusers.html",
         {
             "request": request,
-            "userlist": userlist,
-            "names": names,
-            "rolls": rolls,
-            "l": l,
-            "totalreg": totalreg(),
-            "datetoday2": datetoday2,
+            "users": users,
         },
     )
 
@@ -270,9 +281,24 @@ async def start(request: Request):
 # person during attendance taking stage.
 @app.post("/add", response_class=HTMLResponse)
 async def add(
-    request: Request, newusername: str = Form(...), newuserid: str = Form(...)
+    request: Request,
+    first_name: str = Form(...),
+    other_names: str = Form(),
+    reg_no: str = Form(...),
+    db: Session = Depends(get_db),
 ):
-    userimagefolder = "static/faces/" + newusername + "_" + str(newuserid)
+    student = models.Student()
+    student.first_name = first_name
+    student.other_names = other_names
+    student.reg_no = reg_no
+    db.add(student)
+    db.commit()
+
+    # format reg_no with underscores to esnure correct folder names
+    # replacing "/" with "_"
+    formatted_reg_no = reg_no.replace("/", "_")
+
+    userimagefolder = f"static/faces/{first_name}_{other_names}_{formatted_reg_no}"
     if not os.path.isdir(userimagefolder):
         os.makedirs(userimagefolder)
     i, j = 0, 0
@@ -293,8 +319,8 @@ async def add(
                 cv2.LINE_AA,
             )
             if j % 5 == 0:
-                name = newusername + "_" + str(i) + ".jpg"
-                cv2.imwrite(userimagefolder + "/" + name, frame[y : y + h, x : x + w])
+                name = f"{first_name}_{other_names}_{i}.jpg"
+                cv2.imwrite(f"{userimagefolder}/{name}", frame[y : y + h, x : x + w])
                 i += 1
             j += 1
         if j == nimgs * 5:
@@ -304,7 +330,7 @@ async def add(
             break
     cap.release()
     cv2.destroyAllWindows()
-    print("Training Model")
+    # training the model with the collected images
     train_model()
     names, rolls, times, l = extract_attendance()
     return templates.TemplateResponse(
