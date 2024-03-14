@@ -12,6 +12,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sqlalchemy.orm import Session
 
 import models
+from admin_site import admin
 from database import SessionLocal, engine
 
 # Defining FastAPI App
@@ -345,3 +346,11 @@ async def add(
             "datetoday2": datetoday2,
         },
     )
+
+
+admin.mount_to(app)
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app)

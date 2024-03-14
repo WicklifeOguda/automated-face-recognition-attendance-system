@@ -17,6 +17,18 @@ python-multipart
 
 # Db dependencies
 sqlalchemy
+aiosqlite
+
+# Admin site dependencies
+#fastapi_amis_admin
+#pydantic-settings
+#fastapi-user-auth
+starlette-admin
+itsdangerous
+cryptography
+
+#Env tools
+python-dotenv
 
 # Code Sorting and formatting
 isort
