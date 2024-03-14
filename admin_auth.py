@@ -1,30 +1,28 @@
+import json
+import os
+
+from cryptography.fernet import Fernet
+from dotenv import load_dotenv
 from fastapi.requests import Request
 from fastapi.responses import Response
 from starlette_admin.auth import AdminConfig, AdminUser, AuthProvider
 from starlette_admin.exceptions import FormValidationError, LoginFailed
 
-users = {
-    "admin": {
-        "name": "Admin",
-        "avatar": None, #"admin.png",
-        "company_logo_url": None, #"admin.png",
-        "roles": ["read", "create", "edit", "delete", "action_make_published"],
-    },
-    "johndoe": {
-        "name": "John Doe",
-        "avatar": None, # user avatar is optional
-        "roles": ["read", "create", "edit", "action_make_published"],
-    },
-    "viewer": {"name": "Viewer", "avatar": "guest.png", "roles": ["read"]},
-}
+load_dotenv()
+
+
+# Load encryption key from environment variable
+encryption_key = os.getenv("ENCRYPTION_KEY")
+if encryption_key is None:
+    raise ValueError("Encryption key not found in environment variables")
+
+# Initialize Fernet cipher with encryption key
+cipher = Fernet(encryption_key.encode())
+
+ADMIN_CREDENTIALS_FILE = "admin_credentials.json"
 
 
 class AdminAuthProvider(AuthProvider):
-    """
-    This is only for demo purpose, it's not a better
-    way to save and validate user credentials
-    """
-
     async def login(
         self,
         username: str,
@@ -33,49 +31,43 @@ class AdminAuthProvider(AuthProvider):
         request: Request,
         response: Response,
     ) -> Response:
-        if len(username) < 3:
-            """Form data validation"""
-            raise FormValidationError(
-                {"username": "Ensure username has at least 03 characters"}
-            )
+        # Load encrypted admin credentials from JSON file
+        with open(ADMIN_CREDENTIALS_FILE, "r") as file:
+            encrypted_credentials = json.load(file)
 
-        if username in users and password == "password":
-            """Save `username` in session"""
-            request.session.update({"username": username})
-            return response
+        # Decrypt admin credentials
+        encrypted_data = encrypted_credentials.get("encrypted_data")
+        if not encrypted_data:
+            raise ValueError("No encrypted data found in admin credentials file")
+
+        decrypted_value = cipher.decrypt(encrypted_data.encode()).decode()
+
+        # Parse decrypted JSON string to extract admin credentials
+        decrypted_credentials = json.loads(decrypted_value)
+
+        # Check if provided username and password match any admin credentials
+        admins = decrypted_credentials[0]["admins"]
+        for admin_data in admins:
+            if (
+                username == admin_data["username"]
+                and password == admin_data["password"]
+            ):
+                # Save username in session
+                request.session.update({"username": username})
+                return response
 
         raise LoginFailed("Invalid username or password")
 
     async def is_authenticated(self, request) -> bool:
-        if request.session.get("username", None) in users:
-            """
-            Save current `user` object in the request state. Can be used later
-            to restrict access to connected user.
-            """
-            request.state.user = users.get(request.session["username"])
-            return True
-
-        return False
+        return "username" in request.session
 
     def get_admin_config(self, request: Request) -> AdminConfig:
-        user = request.state.user  # Retrieve current user
-        # Update app title according to current_user
-        custom_app_title = "Hello, " + user["name"] + "!"
-        # Update logo url according to current_user
-        custom_logo_url = None
-        if user.get("company_logo_url", None):
-            custom_logo_url = request.url_for("static", path=user["company_logo_url"])
-        return AdminConfig(
-            app_title=custom_app_title,
-            logo_url=custom_logo_url,
-        )
+        user = request.session.get("username")
+        return AdminConfig(app_title=f"Admin - {user}")
 
     def get_admin_user(self, request: Request) -> AdminUser:
-        user = request.state.user  # Retrieve current user
-        photo_url = None
-        if user["avatar"] is not None:
-            photo_url = request.url_for("static", path=user["avatar"])
-        return AdminUser(username=user["name"], photo_url=photo_url)
+        user = request.session.get("username")
+        return AdminUser(username=user)
 
     async def logout(self, request: Request, response: Response) -> Response:
         request.session.clear()

@@ -165,3 +165,7 @@ Attendance/
 
 # local sqlite3 db or any .db files
 *.db
+
+# Admin creation processes
+admincredencryption.py
+encryption_key.txt

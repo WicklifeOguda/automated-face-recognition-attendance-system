@@ -10,28 +10,16 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sklearn.neighbors import KNeighborsClassifier
 from sqlalchemy.orm import Session
-import models
-#from admin_site import site
-from database import SessionLocal, engine
-from admin_auth import AdminAuthProvider
-from starlette.middleware import Middleware
-from starlette.middleware.sessions import SessionMiddleware
 
+import models
+from admin_site import admin
+from database import SessionLocal, engine
 
 # Defining FastAPI App
 app = FastAPI()
 
 # Database Connections
 models.Base.metadata.create_all(bind=engine)
-
-admin = Admin(engine, title="WikieAutoAttendance",
-              auth_provider=AdminAuthProvider(),
-              middlewares=[Middleware(SessionMiddleware, secret_key="SECRET")],
-              )
-
-
-""" user_manager = DatabaseUserManager(engine, Base)
-user_auth = FastAPIUserAuth(user_manager) """
 
 
 def get_db():
@@ -359,22 +347,8 @@ async def add(
         },
     )
 
-#auth = site.auth
 
-# mount AdminSite instance
-#site.mount_app(app)
-
-admin.add_view(ModelView(models.Student))
 admin.mount_to(app)
-
-# Create initialized database table
-""" async def startup_event():
-    await site.db.async_run_sync(models.Base.metadata.create_all,is_session=False)
-    # Create a default test user, please change the password in time!!!
-    await auth.create_role_user()
-    #await auth.create_role_user('vip')
-
-app.add_event_handler("startup", startup_event) """
 
 if __name__ == "__main__":
     import uvicorn
