@@ -4,7 +4,7 @@ from starlette_admin.contrib.sqla import Admin, ModelView
 
 from admin_auth import AdminAuthProvider
 from database import engine
-from models import Student, Unit
+from models import Attendance, Student, Unit
 
 admin = Admin(
     engine,
@@ -15,3 +15,4 @@ admin = Admin(
 
 admin.add_view(ModelView(Student))
 admin.add_view(ModelView(Unit))
+admin.add_view(ModelView(Attendance))
