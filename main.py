@@ -4,7 +4,6 @@ from datetime import date, datetime
 import cv2
 import joblib
 import numpy as np
-import pandas as pd
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -34,28 +33,14 @@ templates = Jinja2Templates(directory="templates")
 
 nimgs = 10
 
-# Saving Date today in 2 different formats
-datetoday = date.today().strftime("%m_%d_%y")
-datetoday2 = date.today().strftime("%d-%B-%Y")
-
 # Initializing VideoCapture object to access WebCam
 face_detector = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
 
 # If these directories don't exist, create them
-if not os.path.isdir("Attendance"):
-    os.makedirs("Attendance")
 if not os.path.isdir("static"):
     os.makedirs("static")
 if not os.path.isdir("static/faces"):
     os.makedirs("static/faces")
-if f"Attendance-{datetoday}.csv" not in os.listdir("Attendance"):
-    with open(f"Attendance/Attendance-{datetoday}.csv", "w") as f:
-        f.write("Name,Roll,Time")
-
-
-# get a number of total registered users
-def totalreg():
-    return len(os.listdir("static/faces"))
 
 
 # extract the face from an image
@@ -91,42 +76,6 @@ def train_model():
     joblib.dump(knn, "static/face_recognition_model.pkl")
 
 
-# Extract info from today's attendance file in attendance folder
-def extract_attendance():
-    df = pd.read_csv(f"Attendance/Attendance-{datetoday}.csv")
-    names = df["Name"]
-    rolls = df["Roll"]
-    times = df["Time"]
-    l = len(df)
-    return names, rolls, times, l
-
-
-# Add Attendance of a specific user
-def add_attendance(name):
-    username = name.split("_")[0]
-    userid = name.split("_")[1]
-    current_time = datetime.now().strftime("%H:%M:%S")
-
-    df = pd.read_csv(f"Attendance/Attendance-{datetoday}.csv")
-    if int(userid) not in list(df["Roll"]):
-        with open(f"Attendance/Attendance-{datetoday}.csv", "a") as f:
-            f.write(f"\n{username},{userid},{current_time}")
-
-
-# A function to get names and rol numbers of all users
-def getallusers():
-    userlist = os.listdir("static/faces")
-    names = []
-    rolls = []
-    l = len(userlist)
-
-    for i in userlist:
-        name, roll = i.split("_")
-        names.append(name)
-        rolls.append(roll)
-
-    return userlist, names, rolls, l
-
 
 # A function to delete a user folder
 def deletefolder(duser):
@@ -142,17 +91,10 @@ def deletefolder(duser):
 # Our main page
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    names, rolls, times, l = extract_attendance()
     return templates.TemplateResponse(
         "home.html",
         {
             "request": request,
-            "names": names,
-            "rolls": rolls,
-            "times": times,
-            "l": l,
-            "totalreg": totalreg(),
-            "datetoday2": datetoday2,
         },
     )
 
@@ -185,45 +127,54 @@ async def deleteuser(request: Request, user: str = None):
     except:
         pass
 
-    userlist, names, rolls, l = getallusers()
     return templates.TemplateResponse(
         "listusers.html",
         {
             "request": request,
-            "userlist": userlist,
-            "names": names,
-            "rolls": rolls,
-            "l": l,
-            "totalreg": totalreg(),
-            "datetoday2": datetoday2,
         },
     )
 
 
 # Our main Face Recognition functionality.
 # This function will run when we click on Take Attendance Button.
-@app.get("/start", response_class=HTMLResponse)
-async def start(request: Request):
-    names, rolls, times, l = extract_attendance()
-
+@app.post("/start", response_class=HTMLResponse)
+async def start(request: Request,
+                unit_code: str = Form(...),
+        db: Session = Depends(get_db),
+                ):
+    unit = db.query(models.Unit).filter_by(code=unit_code).first()
+    if unit is None:
+        return templates.TemplateResponse(
+            "home.html",
+            {
+                "request": request,
+                
+                "mess": "No unit with the provided code!",
+            },
+        )
+    current_time = datetime.now().time()
+    if not (unit.starts_at < current_time <= unit.ends_at):
+        return templates.TemplateResponse(
+            "home.html",
+            {
+                "request": request,
+                
+                "mess": "You can't take attendance out of classtime!!",
+            },
+        )
+    
     if "face_recognition_model.pkl" not in os.listdir("static"):
         return templates.TemplateResponse(
             "home.html",
             {
                 "request": request,
-                "names": names,
-                "rolls": rolls,
-                "times": times,
-                "l": l,
-                "totalreg": totalreg(),
-                "datetoday2": datetoday2,
                 "mess": "There is no trained model in the static folder. Please add a new face to continue.",
             },
         )
 
     ret = True
     cap = cv2.VideoCapture(0)
-    identified_person = None
+    identified_person: str|None = None
     try:
         while ret:
             ret, frame = cap.read()
@@ -233,7 +184,7 @@ async def start(request: Request):
                 cv2.rectangle(frame, (x, y), (x + w, y - 40), (86, 32, 251), -1)
                 face = cv2.resize(frame[y : y + h, x : x + w], (50, 50))
                 identified_person = identify_face(face.reshape(1, -1))[0]
-                add_attendance(identified_person)
+
                 cv2.putText(
                     frame,
                     f"{identified_person}",
@@ -254,6 +205,15 @@ async def start(request: Request):
         cv2.destroyAllWindows()
 
     if identified_person:
+        identified_p_list = identified_person.split("_")[-3:]
+        reg_no = f"{identified_p_list[0]}/{identified_p_list[1]}/{identified_p_list[2]}"
+        student = db.query(models.Student).filter_by(reg_no=reg_no).first()
+        if student:
+            attendance = models.Attendance()
+            attendance.student_id = student.id
+            attendance.unit_id = unit.id
+            db.add(attendance)
+            db.commit()
         return templates.TemplateResponse(
             "identification_info.html",
             {
@@ -262,17 +222,10 @@ async def start(request: Request):
             },
         )
     else:
-        names, rolls, times, l = extract_attendance()
         return templates.TemplateResponse(
             "home.html",
             {
                 "request": request,
-                "names": names,
-                "rolls": rolls,
-                "times": times,
-                "l": l,
-                "totalreg": totalreg(),
-                "datetoday2": datetoday2,
             },
         )
 
@@ -284,13 +237,13 @@ async def start(request: Request):
 async def add(
     request: Request,
     first_name: str = Form(...),
-    other_names: str = Form(),
+    last_name: str = Form(),
     reg_no: str = Form(...),
     db: Session = Depends(get_db),
 ):
     student = models.Student()
     student.first_name = first_name
-    student.other_names = other_names
+    student.last_name = last_name
     student.reg_no = reg_no
     db.add(student)
     db.commit()
@@ -299,7 +252,7 @@ async def add(
     # replacing "/" with "_"
     formatted_reg_no = reg_no.replace("/", "_")
 
-    userimagefolder = f"static/faces/{first_name}_{other_names}_{formatted_reg_no}"
+    userimagefolder = f"static/faces/{first_name}_{last_name}_{formatted_reg_no}"
     if not os.path.isdir(userimagefolder):
         os.makedirs(userimagefolder)
     i, j = 0, 0
@@ -320,7 +273,7 @@ async def add(
                 cv2.LINE_AA,
             )
             if j % 5 == 0:
-                name = f"{first_name}_{other_names}_{i}.jpg"
+                name = f"{first_name}_{last_name}_{i}.jpg"
                 cv2.imwrite(f"{userimagefolder}/{name}", frame[y : y + h, x : x + w])
                 i += 1
             j += 1
@@ -333,17 +286,11 @@ async def add(
     cv2.destroyAllWindows()
     # training the model with the collected images
     train_model()
-    names, rolls, times, l = extract_attendance()
+
     return templates.TemplateResponse(
         "home.html",
         {
             "request": request,
-            "names": names,
-            "rolls": rolls,
-            "times": times,
-            "l": l,
-            "totalreg": totalreg(),
-            "datetoday2": datetoday2,
         },
     )
 

@@ -20,9 +20,6 @@ sqlalchemy
 aiosqlite
 
 # Admin site dependencies
-#fastapi_amis_admin
-#pydantic-settings
-#fastapi-user-auth
 starlette-admin
 itsdangerous
 cryptography
