@@ -19,7 +19,7 @@ class Student(Base):
     )
     reg_no = Column(String, index=True, unique=True)
     first_name = Column(String)
-    other_names = Column(String)
+    last_name = Column(String)
 
 
 class Unit(Base):
