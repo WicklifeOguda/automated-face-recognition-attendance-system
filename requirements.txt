@@ -1,0 +1,32 @@
+# Server
+fastapi
+uvicorn[standard]
+
+# Machine Learning Dependencies
+numpy
+pandas
+scikit-learn
+opencv-python
+joblib
+
+# template renderer
+jinja2
+
+# form data handling
+python-multipart
+
+# Db dependencies
+sqlalchemy
+aiosqlite
+
+# Admin site dependencies
+starlette-admin
+itsdangerous
+cryptography
+
+#Env tools
+python-dotenv
+
+# Code Sorting and formatting
+isort
+black
