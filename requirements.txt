@@ -4,7 +4,6 @@ uvicorn[standard]
 
 # Machine Learning Dependencies
 numpy
-pandas
 scikit-learn
 opencv-python
 joblib
