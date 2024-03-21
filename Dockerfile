@@ -22,4 +22,4 @@ RUN pip install pip --upgrade
 RUN pip install -r /app/requirements.txt
 
 # Run command
-CMD uvicorn main:app --bind 0.0.0.0:$PORT
+CMD uvicorn main:app --host 0.0.0.0 --port $PORT
